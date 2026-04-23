@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 
 import '../screens/calendar/calendar_screen.dart';
 import '../screens/calendar/day_detail_screen.dart';
-import '../screens/calendar/workout_instance_screen.dart';
 import '../screens/exercises/exercise_detail_screen.dart';
 import '../screens/exercises/exercise_form_screen.dart';
 import '../screens/exercises/exercises_screen.dart';
@@ -15,7 +14,7 @@ import '../screens/reports/reports_screen.dart';
 import '../screens/reports/settings_screen.dart';
 import '../screens/workouts/exercise_picker_screen.dart';
 import '../screens/workouts/schedule_form_screen.dart';
-import '../screens/workouts/workout_instance_screen.dart' as workouts;
+import '../screens/workouts/workout_instance_screen.dart';
 import '../screens/workouts/workout_plan_detail_screen.dart';
 import '../screens/workouts/workout_plan_form_screen.dart';
 import '../screens/workouts/workouts_screen.dart';
@@ -29,6 +28,14 @@ final _goalsKey = GlobalKey<NavigatorState>(debugLabel: 'goals');
 final _reportsKey = GlobalKey<NavigatorState>(debugLabel: 'reports');
 final _progressKey = GlobalKey<NavigatorState>(debugLabel: 'progress');
 
+PhotoViewerScreen _photoViewer(GoRouterState s) {
+  final extra = s.extra as Map<String, dynamic>;
+  return PhotoViewerScreen(
+    photos: (extra['photos'] as List).cast<Map<String, dynamic>>(),
+    initialIndex: extra['initialIndex'] as int,
+  );
+}
+
 final router = GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/calendar',
@@ -36,10 +43,11 @@ final router = GoRouter(
     StatefulShellRoute.indexedStack(
       builder: (context, state, shell) => ScaffoldWithNav(shell: shell),
       branches: [
+        // ── Calendar ──────────────────────────────────────────────────────────
         StatefulShellBranch(navigatorKey: _calendarKey, routes: [
           GoRoute(
             path: '/calendar',
-            builder: (_, __) => const CalendarScreen(),
+            builder: (ctx, s) => const CalendarScreen(),
             routes: [
               GoRoute(
                 path: 'day/:date',
@@ -53,21 +61,25 @@ final router = GoRouter(
                   ),
                   GoRoute(
                     path: 'photo-viewer',
-                    builder: (_, s) => PhotoViewerScreen(
-                      photos: s.extra as List<Map<String, dynamic>>,
-                      initialIndex: 0,
-                    ),
+                    builder: (_, s) => _photoViewer(s),
                   ),
                 ],
               ),
             ],
           ),
         ]),
+
+        // ── Workouts ──────────────────────────────────────────────────────────
         StatefulShellBranch(navigatorKey: _workoutsKey, routes: [
           GoRoute(
             path: '/workouts',
-            builder: (_, __) => const WorkoutsScreen(),
+            builder: (ctx, s) => const WorkoutsScreen(),
             routes: [
+              // 'new' must precede ':id' to avoid matching 'new' as an ID
+              GoRoute(
+                path: 'plan/new',
+                builder: (ctx, s) => const WorkoutPlanFormScreen(),
+              ),
               GoRoute(
                 path: 'plan/:id',
                 builder: (_, s) => WorkoutPlanDetailScreen(
@@ -82,15 +94,15 @@ final router = GoRouter(
                   ),
                   GoRoute(
                     path: 'schedule/form',
-                    builder: (_, s) => ScheduleFormScreen(
-                      planId: int.parse(s.pathParameters['id']!),
-                    ),
+                    builder: (_, s) {
+                      final scheduleId = (s.extra as Map<String, dynamic>?)?['scheduleId'] as int?;
+                      return ScheduleFormScreen(
+                        planId: int.parse(s.pathParameters['id']!),
+                        scheduleId: scheduleId,
+                      );
+                    },
                   ),
                 ],
-              ),
-              GoRoute(
-                path: 'plan/new',
-                builder: (_, __) => const WorkoutPlanFormScreen(),
               ),
               GoRoute(
                 path: 'exercise-picker',
@@ -100,75 +112,80 @@ final router = GoRouter(
               ),
               GoRoute(
                 path: 'instance/:id',
-                builder: (_, s) => workouts.WorkoutInstanceScreen(
+                builder: (_, s) => WorkoutInstanceScreen(
                   instanceId: int.parse(s.pathParameters['id']!),
                 ),
               ),
             ],
           ),
         ]),
+
+        // ── Exercises ─────────────────────────────────────────────────────────
         StatefulShellBranch(navigatorKey: _exercisesKey, routes: [
           GoRoute(
             path: '/exercises',
-            builder: (_, __) => const ExercisesScreen(),
+            builder: (ctx, s) => const ExercisesScreen(),
             routes: [
+              // 'new' before ':id'
+              GoRoute(
+                path: 'new',
+                builder: (ctx, s) => const ExerciseFormScreen(),
+              ),
               GoRoute(
                 path: ':id',
                 builder: (_, s) => ExerciseDetailScreen(
                   exerciseId: int.parse(s.pathParameters['id']!),
                 ),
-              ),
-              GoRoute(
-                path: 'new',
-                builder: (_, __) => const ExerciseFormScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'edit',
+                    builder: (_, s) => ExerciseFormScreen(
+                      exerciseId: int.parse(s.pathParameters['id']!),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         ]),
+
+        // ── Goals ─────────────────────────────────────────────────────────────
         StatefulShellBranch(navigatorKey: _goalsKey, routes: [
           GoRoute(
             path: '/goals',
-            builder: (_, __) => const GoalsScreen(),
+            builder: (ctx, s) => const GoalsScreen(),
             routes: [
               GoRoute(
                 path: 'new',
-                builder: (_, __) => const GoalFormScreen(),
-              ),
-              GoRoute(
-                path: ':id/edit',
-                builder: (_, s) => GoalFormScreen(
-                  goalId: int.parse(s.pathParameters['id']!),
-                ),
+                builder: (ctx, s) => const GoalFormScreen(),
               ),
             ],
           ),
         ]),
+
+        // ── Reports ───────────────────────────────────────────────────────────
         StatefulShellBranch(navigatorKey: _reportsKey, routes: [
           GoRoute(
             path: '/reports',
-            builder: (_, __) => const ReportsScreen(),
+            builder: (ctx, s) => const ReportsScreen(),
             routes: [
               GoRoute(
                 path: 'settings',
-                builder: (_, __) => const SettingsScreen(),
+                builder: (ctx, s) => const SettingsScreen(),
               ),
             ],
           ),
         ]),
+
+        // ── Progress ──────────────────────────────────────────────────────────
         StatefulShellBranch(navigatorKey: _progressKey, routes: [
           GoRoute(
             path: '/progress',
-            builder: (_, __) => const ProgressScreen(),
+            builder: (ctx, s) => const ProgressScreen(),
             routes: [
               GoRoute(
                 path: 'viewer',
-                builder: (_, s) {
-                  final extra = s.extra as Map<String, dynamic>;
-                  return PhotoViewerScreen(
-                    photos: extra['photos'] as List<Map<String, dynamic>>,
-                    initialIndex: extra['initialIndex'] as int,
-                  );
-                },
+                builder: (_, s) => _photoViewer(s),
               ),
             ],
           ),
